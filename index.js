@@ -2,6 +2,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const express = require('express');
 const cors = require('cors');
+const axios = require('axios'); 
 require('dotenv').config();
 
 const app = express();
@@ -44,25 +45,42 @@ client.on('authenticated', () => {
 client.on('message', async (message) => {
     console.log(`Mensagem recebida de ${message.from}: ${message.body}`);
     
-    if (message.body.toLowerCase().includes('olá') || message.body.toLowerCase().includes('oi')) {
-        message.reply('Olá! Este é um bot automatizado. Como posso ajudar?');
-    }
-    
-    if (message.body.toLowerCase().includes('status')) {
-        await message.reply('Todos os sistemas estão funcionando normalmente.');
-    }
-    
-    if (message.body.startsWith('/comando')) {
-        const comando = message.body.substring(9);
-        try {
+    if (!message.body || message.body.length === 0) return;
+
+    try {
+        if (message.body.toLowerCase().includes('status')) {
+            return await message.reply('Todos os sistemas estão funcionando normalmente.');
+        }
+
+        if (message.body.startsWith('/comando')) {
+            const comando = message.body.substring(9);
             console.log(`Executando comando: ${comando}`);
-            await message.reply(`Comando "${comando}" executado com sucesso!`);
-        } catch (error) {
-            console.error(`Erro ao executar comando: ${error}`);
-            await message.reply('Erro ao executar o comando. Por favor, tente novamente.');
+            return await message.reply(`Comando "${comando}" executado com sucesso!`);
+        }
+
+        const response = await axios.post('http://localhost:8082/agent', {
+            chat_id: message.from,
+            user_content: message.body,
+            collection_name: "arquivos"
+        });
+
+        if (response.data?.response?.content) {
+            await message.reply(response.data.response.content);
+        } else {
+            await message.reply("Não entendi sua mensagem. Poderia reformular?");
+        }
+
+    } catch (error) {
+        console.error('Erro ao processar mensagem:', error);
+        
+        if (message.body.toLowerCase().includes('olá') || message.body.toLowerCase().includes('oi')) {
+            await message.reply('Olá! Este é um bot automatizado. Como posso ajudar?');
+        } else {
+            await message.reply('Desculpe, estou com problemas técnicos. Tente novamente mais tarde.');
         }
     }
 });
+
 
 client.initialize();
 
